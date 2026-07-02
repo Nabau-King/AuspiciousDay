@@ -23,19 +23,6 @@
 - 支持日期详情、复制结果、本地历史记录、分享卡片 PNG。
 - 支持浅色/深色主题与 PWA 离线访问。
 
-## 测试
-
-如果本地有 Node.js，可运行：
-
-```bash
-node tests.js
-```
-
-在 Codex 桌面环境中可使用 bundled Node：
-
-```bash
-C:\Users\Nabau\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe tests.js
-```
 
 ## 说明
 
