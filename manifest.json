@@ -1,0 +1,18 @@
+{
+  "name": "黄道吉日查询",
+  "short_name": "吉日查询",
+  "description": "按传统黄历宜忌、建除值星、黄道黑道与生肖冲煞筛选搬迁、结婚、开业候选日期。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4efe6",
+  "theme_color": "#18342f",
+  "icons": [
+    {
+      "src": "assets/calendar-compass.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
