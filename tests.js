@@ -22,6 +22,13 @@ function at(key) {
 }
 
 {
+  const local = core.scoreDay(at("2026-07-05"), "moving", "", "balanced", "local_6tail");
+  const market = core.scoreDay(at("2026-07-05"), "moving", "", "balanced", "market_yi");
+  assert.strictEqual(market.sourceName, "常见万年历（宜忌优先）");
+  assert(market.score > local.score, "market yi-first profile should be more permissive when yi terms match");
+}
+
+{
   const balanced = core.scoreDay(at("2026-07-05"), "moving", "", "balanced");
   const strict = core.scoreDay(at("2026-07-05"), "moving", "", "strict");
   assert.strictEqual(strict.modeName, "严格避忌");
@@ -52,9 +59,10 @@ function at(key) {
 }
 
 {
-  const list = core.queryAuspiciousDays({ eventKey: "moving", days: 30, startDate: "2026-07-01", modeKey: "raw" });
+  const list = core.queryAuspiciousDays({ eventKey: "moving", days: 30, startDate: "2026-07-01", modeKey: "raw", sourceKey: "raw_text" });
   assert.strictEqual(list.length, 30);
   assert(list.every((item) => item.modeKey === "raw"), "query should pass scoring mode to every day");
+  assert(list.every((item) => item.sourceKey === "raw_text"), "query should pass source profile to every day");
   for (let index = 1; index < list.length; index += 1) {
     const prev = list[index - 1];
     const next = list[index];

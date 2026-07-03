@@ -520,6 +520,36 @@
       font-size: 13px;
     }
 
+    .day-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .mini-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: var(--chip-bg);
+      font-size: 11px;
+      line-height: 1.2;
+    }
+
+    .mini-chip.warn {
+      color: var(--red);
+      background: rgba(201, 94, 75, .1);
+    }
+
+    body.theme-dark .mini-chip.warn {
+      color: #f0a095;
+      background: rgba(217, 116, 99, .16);
+    }
+
     .grade-pill {
       display: grid;
       place-items: center;
@@ -738,6 +768,10 @@
       transform: translateX(-50%) translateY(0);
     }
 
+    .mobile-detail-sheet {
+      display: none;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -813,6 +847,60 @@
       .quick-stats {
         grid-template-columns: 1fr;
       }
+
+      .right-panel {
+        display: none;
+      }
+
+      .mobile-detail-sheet {
+        position: fixed;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        z-index: 20;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        max-height: min(78vh, 680px);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel-bg);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, .32);
+        transform: translateY(calc(100% + 18px));
+        opacity: 0;
+        pointer-events: none;
+        transition: transform .22s ease, opacity .22s ease;
+      }
+
+      .mobile-detail-sheet.open {
+        transform: translateY(0);
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .mobile-sheet-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .mobile-sheet-head b {
+        font-size: 14px;
+      }
+
+      .mobile-sheet-head span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .mobile-sheet-body {
+        padding: 12px;
+        overflow: auto;
+      }
     }
   </style>
 </head>
@@ -880,6 +968,15 @@
               </select>
             </div>
             <div class="field">
+              <label for="almanacSource">黄历来源</label>
+              <select id="almanacSource">
+                <option value="local_6tail">本地黄历（6tail）</option>
+                <option value="market_yi">常见万年历（宜忌优先）</option>
+                <option value="tongshu_strict">传统通胜（保守）</option>
+                <option value="raw_text">黄历原文（轻评分）</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="zodiac">生肖或出生年（可选）</label>
               <input id="zodiac" type="text" maxlength="4" placeholder="例如：羊 / 1991">
             </div>
@@ -896,6 +993,7 @@
             </div>
             <div class="button-row">
               <button class="btn" id="runQuery" type="button">查询吉日</button>
+              <button class="btn secondary" id="refreshSource" type="button">刷新检测</button>
               <button class="btn secondary" id="copyResult" type="button">复制首选</button>
               <button class="btn secondary" id="saveHistory" type="button">保存查询</button>
               <button class="btn secondary" id="shareCard" type="button">分享卡片</button>
@@ -1005,6 +1103,16 @@
   </main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <section class="mobile-detail-sheet" id="mobileDetailSheet" aria-label="日期详情">
+    <div class="mobile-sheet-head">
+      <div>
+        <b id="mobileDetailTitle">日期详情</b>
+        <span id="mobileDetailHint">点击候选日查看</span>
+      </div>
+      <button class="mini-btn" id="closeMobileDetail" type="button">关闭</button>
+    </div>
+    <div class="mobile-sheet-body" id="mobileDetailPanel"></div>
+  </section>
 
   <script src="vendor/lunar-javascript/lunar.js"></script>
   <script src="auspicious-core.js"></script>
@@ -1057,6 +1165,7 @@
       $("eventType").value = localStorage.getItem("auspiciousEvent") || "moving";
       $("rangeDays").value = localStorage.getItem("auspiciousRange") || "90";
       $("scoringMode").value = localStorage.getItem("auspiciousScoringMode") || "balanced";
+      $("almanacSource").value = localStorage.getItem("auspiciousAlmanacSource") || "local_6tail";
       $("zodiac").value = localStorage.getItem("auspiciousZodiac") || "";
       $("hideAvoid").checked = localStorage.getItem("auspiciousHideAvoid") === "1";
     }
@@ -1071,6 +1180,7 @@
       return {
         eventKey: $("eventType").value,
         modeKey: $("scoringMode").value,
+        sourceKey: $("almanacSource").value,
         days: Number($("rangeDays").value),
         startDate: $("startDate").value || inputDateValue(new Date()),
         zodiac: $("zodiac").value.trim()
@@ -1082,6 +1192,7 @@
       localStorage.setItem("auspiciousEvent", options.eventKey);
       localStorage.setItem("auspiciousRange", String(options.days));
       localStorage.setItem("auspiciousScoringMode", options.modeKey);
+      localStorage.setItem("auspiciousAlmanacSource", options.sourceKey);
       localStorage.setItem("auspiciousZodiac", options.zodiac);
       localStorage.setItem("auspiciousHideAvoid", $("hideAvoid").checked ? "1" : "0");
       state.sorted = core.queryAuspiciousDays(options);
@@ -1109,6 +1220,7 @@
     function render() {
       const event = core.eventConfig($("eventType").value);
       const mode = core.scoringModeConfig($("scoringMode").value);
+      const source = core.sourceProfileConfig($("almanacSource").value);
       const normalizedZodiac = core.normalizeZodiac($("zodiac").value);
       const top = state.sorted.find((item) => item.grade.key !== "avoid") || state.sorted[0];
       const excellent = state.sorted.filter((item) => item.grade.key === "excellent").length;
@@ -1116,11 +1228,11 @@
       const clash = state.sorted.filter((item) => item.zodiacClash).length;
 
       $("resultTitle").textContent = `${event.name}候选吉日`;
-      $("querySummary").textContent = `${$("startDate").value} 起 · ${$("rangeDays").value} 天 · ${mode.name}${normalizedZodiac ? ` · 生肖${normalizedZodiac}` : ""}`;
+      $("querySummary").textContent = `${$("startDate").value} 起 · ${$("rangeDays").value} 天 · ${source.shortName} · ${mode.name}${normalizedZodiac ? ` · 生肖${normalizedZodiac}` : ""}`;
       $("excellentCount").textContent = `${excellent} 天`;
       $("usableCount").textContent = `${usable} 天`;
       $("clashCount").textContent = normalizedZodiac ? `${clash} 天` : "未填写";
-      $("focusText").textContent = mode.shortName;
+      $("focusText").textContent = source.shortName;
 
       if (top) {
         $("heroGrade").textContent = top.grade.label;
@@ -1146,6 +1258,11 @@
           <span class="day-main">
             <h3>${escapeHtml(day.solarText)} · ${escapeHtml(day.eventName)}</h3>
             <p>${escapeHtml(cardSummary(day))}</p>
+            <span class="day-meta">
+              <span class="mini-chip ${day.zodiacClash ? "warn" : ""}">冲煞：${escapeHtml(day.chongText || "无")}${day.shaText ? ` · 煞${escapeHtml(day.shaText)}` : ""}</span>
+              <span class="mini-chip">${escapeHtml(day.zhiXing)}日 · ${escapeHtml(day.tianShenType)}</span>
+              <span class="mini-chip">${escapeHtml(day.sourceName)}</span>
+            </span>
           </span>
           <span class="grade-pill ${gradeClass(day)}">
             ${escapeHtml(day.grade.label)}
@@ -1179,12 +1296,15 @@
     function renderDetails(day) {
       if (!day) {
         $("detailPanel").innerHTML = `<div class="detail-block"><p>暂无结果。</p></div>`;
+        $("mobileDetailPanel").innerHTML = `<div class="detail-block"><p>暂无结果。</p></div>`;
         return;
       }
       $("detailHint").textContent = `${day.score} 分`;
+      $("mobileDetailTitle").textContent = `${day.solarText} · ${day.grade.label}`;
+      $("mobileDetailHint").textContent = `${day.sourceName} · ${day.score} 分`;
       const reasonItems = day.reasons.length ? day.reasons : ["未见强支持项"];
       const warningItems = day.warnings.length ? day.warnings : ["未见明显冲突项"];
-      $("detailPanel").innerHTML = `
+      const detailHtml = `
         <section class="detail-title">
           <span>${escapeHtml(day.solarText)} · ${escapeHtml(day.weekText)}</span>
           <h2>${escapeHtml(day.grade.label)}</h2>
@@ -1193,6 +1313,10 @@
         <section class="detail-block">
           <h3>当前口径</h3>
           <p>${escapeHtml(day.modeName)}：${escapeHtml(day.modeDescription)}</p>
+        </section>
+        <section class="detail-block">
+          <h3>当前来源</h3>
+          <p>${escapeHtml(day.sourceName)}：${escapeHtml(day.sourceDescription)}</p>
         </section>
         <section class="detail-block">
           <h3>日期信息</h3>
@@ -1226,12 +1350,21 @@
           <p>凶煞：${escapeHtml(day.xiongSha.slice(0, 8).join("、") || "无")}</p>
         </section>
       `;
+      $("detailPanel").innerHTML = detailHtml;
+      $("mobileDetailPanel").innerHTML = detailHtml;
     }
 
     function selectDay(key) {
       state.selectedKey = key;
       renderList();
       renderDetails(selectedDay());
+      if (window.matchMedia("(max-width: 820px)").matches) {
+        $("mobileDetailSheet").classList.add("open");
+      }
+    }
+
+    function closeMobileDetail() {
+      $("mobileDetailSheet").classList.remove("open");
     }
 
     async function copyText(text) {
@@ -1271,6 +1404,7 @@
         id: new Date().toISOString(),
         eventKey: options.eventKey,
         modeKey: options.modeKey,
+        sourceKey: options.sourceKey,
         startDate: options.startDate,
         days: options.days,
         zodiac: options.zodiac,
@@ -1292,11 +1426,12 @@
       $("historyList").innerHTML = history.map((item) => {
         const event = core.eventConfig(item.eventKey);
         const mode = core.scoringModeConfig(item.modeKey);
+        const source = core.sourceProfileConfig(item.sourceKey);
         const zodiac = core.normalizeZodiac(item.zodiac);
         return `
           <button class="history-item" type="button" data-history="${escapeHtml(item.id)}">
             <b>${escapeHtml(event.name)} · ${escapeHtml(item.topGrade || "已保存")}</b>
-            <span>${escapeHtml(item.startDate)} 起 ${Number(item.days) || 90} 天 · ${escapeHtml(mode.name)}${zodiac ? ` · 生肖${escapeHtml(zodiac)}` : ""}${item.topKey ? ` · 首选 ${escapeHtml(item.topKey)}` : ""}</span>
+            <span>${escapeHtml(item.startDate)} 起 ${Number(item.days) || 90} 天 · ${escapeHtml(source.shortName)} · ${escapeHtml(mode.name)}${zodiac ? ` · 生肖${escapeHtml(zodiac)}` : ""}${item.topKey ? ` · 首选 ${escapeHtml(item.topKey)}` : ""}</span>
           </button>
         `;
       }).join("");
@@ -1307,12 +1442,25 @@
       if (!entry) return;
       $("eventType").value = entry.eventKey || "moving";
       $("scoringMode").value = entry.modeKey || "balanced";
+      $("almanacSource").value = entry.sourceKey || "local_6tail";
       $("startDate").value = entry.startDate || inputDateValue(new Date());
       $("rangeDays").value = String(entry.days || 90);
       $("zodiac").value = entry.zodiac || "";
       runQuery();
       state.selectedKey = entry.topKey || state.selectedKey;
       render();
+    }
+
+    function refreshSourceCheck() {
+      const options = currentOptions();
+      const selectedSource = core.sourceProfileConfig(options.sourceKey);
+      const localTop = core.queryAuspiciousDays({ ...options, sourceKey: "local_6tail" }).find((item) => item.grade.key !== "avoid");
+      runQuery();
+      const selectedTop = state.sorted.find((item) => item.grade.key !== "avoid");
+      const message = localTop && selectedTop && localTop.key !== selectedTop.key
+        ? `${selectedSource.shortName}首选 ${selectedTop.key}，本地口径首选 ${localTop.key}`
+        : `${selectedSource.shortName}已刷新，首选与本地口径一致`;
+      showToast(message);
     }
 
     function clearHistory() {
@@ -1405,10 +1553,12 @@
     });
 
     $("runQuery").addEventListener("click", runQuery);
+    $("refreshSource").addEventListener("click", refreshSourceCheck);
     $("copyResult").addEventListener("click", () => copyResult().catch(() => showToast("复制失败，请手动复制")));
     $("saveHistory").addEventListener("click", saveHistory);
     $("shareCard").addEventListener("click", () => shareCard().catch(() => showToast("分享卡片生成失败")));
     $("clearHistory").addEventListener("click", clearHistory);
+    $("closeMobileDetail").addEventListener("click", closeMobileDetail);
     $("colorTheme").addEventListener("change", applyTheme);
     $("hideAvoid").addEventListener("change", () => {
       localStorage.setItem("auspiciousHideAvoid", $("hideAvoid").checked ? "1" : "0");
@@ -1418,7 +1568,7 @@
     document.querySelectorAll(".tab-btn").forEach((button) => {
       button.addEventListener("click", () => switchView(button.dataset.view));
     });
-    ["eventType", "rangeDays", "scoringMode"].forEach((id) => $(id).addEventListener("change", runQuery));
+    ["eventType", "rangeDays", "scoringMode", "almanacSource"].forEach((id) => $(id).addEventListener("change", runQuery));
     ["startDate", "zodiac"].forEach((id) => $(id).addEventListener("change", runQuery));
 
     initPreferences();

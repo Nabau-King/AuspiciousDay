@@ -76,6 +76,85 @@
     }
   };
 
+  const SOURCE_PROFILES = {
+    local_6tail: {
+      key: "local_6tail",
+      name: "本地黄历（6tail）",
+      shortName: "本地",
+      description: "使用内置 lunar-javascript 黄历数据，离线计算每日宜忌、黄道黑道、建除、神煞与冲煞。",
+      weights: {
+        noYiPenalty: 10,
+        yiBase: 28,
+        yiExtra: 4,
+        jiPenalty: 85,
+        yellowBonus: 12,
+        blackPenalty: 14,
+        goodZhiBonus: 10,
+        badZhiPenalty: 16,
+        luckyBonus: 4,
+        unluckyPenalty: 5,
+        zodiacPenalty: 30
+      }
+    },
+    market_yi: {
+      key: "market_yi",
+      name: "常见万年历（宜忌优先）",
+      shortName: "万年历",
+      description: "模拟许多万年历产品的展示习惯：更重视每日宜忌命中，弱化黄道、建除、神煞的二次扣分。",
+      weights: {
+        noYiPenalty: 8,
+        yiBase: 34,
+        yiExtra: 3,
+        jiPenalty: 95,
+        yellowBonus: 6,
+        blackPenalty: 5,
+        goodZhiBonus: 4,
+        badZhiPenalty: 6,
+        luckyBonus: 2,
+        unluckyPenalty: 2,
+        zodiacPenalty: 18
+      }
+    },
+    tongshu_strict: {
+      key: "tongshu_strict",
+      name: "传统通胜（保守）",
+      shortName: "通胜",
+      description: "模拟更保守的通胜筛选：宜项、黄道、建除、冲煞同时看，不满足关键条件时更容易降级。",
+      weights: {
+        noYiPenalty: 24,
+        yiBase: 24,
+        yiExtra: 2,
+        jiPenalty: 100,
+        yellowBonus: 10,
+        blackPenalty: 28,
+        goodZhiBonus: 8,
+        badZhiPenalty: 30,
+        luckyBonus: 4,
+        unluckyPenalty: 8,
+        zodiacPenalty: 36
+      }
+    },
+    raw_text: {
+      key: "raw_text",
+      name: "黄历原文（轻评分）",
+      shortName: "原文",
+      description: "尽量保留原始宜忌结果，只做轻量等级标注，便于和外部黄历页面人工对照。",
+      weights: {
+        noYiPenalty: 4,
+        yiBase: 24,
+        yiExtra: 0,
+        jiPenalty: 90,
+        yellowBonus: 0,
+        blackPenalty: 0,
+        goodZhiBonus: 0,
+        badZhiPenalty: 0,
+        luckyBonus: 0,
+        unluckyPenalty: 0,
+        zodiacPenalty: 0
+      }
+    }
+  };
+
   function pad(value) {
     return String(value).padStart(2, "0");
   }
@@ -101,6 +180,10 @@
 
   function scoringModeConfig(modeKey) {
     return SCORING_MODES[modeKey] || SCORING_MODES.balanced;
+  }
+
+  function sourceProfileConfig(sourceKey) {
+    return SOURCE_PROFILES[sourceKey] || SOURCE_PROFILES.local_6tail;
   }
 
   function uniq(values) {
@@ -132,9 +215,11 @@
     return Solar.fromYmd(date.getFullYear(), date.getMonth() + 1, date.getDate()).getLunar();
   }
 
-  function scoreDay(date, eventKey = "moving", zodiacInput = "", modeKey = "balanced") {
+  function scoreDay(date, eventKey = "moving", zodiacInput = "", modeKey = "balanced", sourceKey = "local_6tail") {
     const event = eventConfig(eventKey);
     const mode = scoringModeConfig(modeKey);
+    const source = sourceProfileConfig(sourceKey);
+    const weights = source.weights;
     const userZodiac = normalizeZodiac(zodiacInput);
     const lunar = lunarForDate(date);
     const yi = lunar.getDayYi();
@@ -156,16 +241,16 @@
     let forbidden = false;
 
     if (yiMatches.length) {
-      score += mode.key === "strict" ? 24 : 28 + Math.min(yiMatches.length - 1, 2) * 4;
+      score += (mode.key === "strict" ? Math.min(weights.yiBase, 24) : weights.yiBase) + Math.min(yiMatches.length - 1, 2) * weights.yiExtra;
       reasons.push(`宜项命中：${yiMatches.join("、")}`);
     } else {
-      score -= mode.key === "strict" ? 24 : 10;
+      score -= mode.key === "strict" ? Math.max(weights.noYiPenalty, 24) : weights.noYiPenalty;
       warnings.push(`每日宜项未直接出现“${event.shortName}”核心词`);
       if (mode.key === "strict") forbidden = true;
     }
 
     if (jiMatches.length) {
-      score -= 85;
+      score -= weights.jiPenalty;
       forbidden = true;
       warnings.push(`忌项命中：${jiMatches.join("、")}`);
     }
@@ -181,36 +266,36 @@
       if (zodiacClash) warnings.push(`冲本人生肖${userZodiac}，本口径仅提示不扣分`);
     } else {
       if (tianShenType === "黄道" || tianShenLuck === "吉") {
-        score += 12;
+        score += weights.yellowBonus;
         reasons.push(`${lunar.getDayTianShen()}为${tianShenType}${tianShenLuck ? `（${tianShenLuck}）` : ""}`);
       } else {
-        score -= mode.key === "strict" ? 26 : 14;
+        score -= mode.key === "strict" ? Math.max(weights.blackPenalty, 26) : weights.blackPenalty;
         warnings.push(`${lunar.getDayTianShen()}为${tianShenType}${tianShenLuck ? `（${tianShenLuck}）` : ""}`);
         if (mode.key === "strict") forbidden = true;
       }
 
       if (event.goodZhi.includes(zhiXing)) {
-        score += 10;
+        score += weights.goodZhiBonus;
         reasons.push(`建除十二值星为“${zhiXing}”，适合${event.shortName}`);
       }
       if (event.badZhi.includes(zhiXing)) {
-        score -= mode.key === "strict" ? 28 : 16;
+        score -= mode.key === "strict" ? Math.max(weights.badZhiPenalty, 28) : weights.badZhiPenalty;
         warnings.push(`建除十二值星为“${zhiXing}”，不利${event.shortName}`);
         if (mode.key === "strict") forbidden = true;
       }
 
       if (luckyMatches.length) {
-        score += Math.min(luckyMatches.length, 3) * 4;
+        score += Math.min(luckyMatches.length, 3) * weights.luckyBonus;
         reasons.push(`吉神宜趋：${luckyMatches.slice(0, 4).join("、")}`);
       }
       if (unluckyMatches.length) {
-        score -= Math.min(unluckyMatches.length, 3) * (mode.key === "strict" ? 8 : 5);
+        score -= Math.min(unluckyMatches.length, 3) * (mode.key === "strict" ? Math.max(weights.unluckyPenalty, 8) : weights.unluckyPenalty);
         warnings.push(`凶煞提示：${unluckyMatches.slice(0, 4).join("、")}`);
       }
 
       if (zodiacClash) {
-      score -= 30;
-      warnings.push(`冲本人生肖${userZodiac}，建议谨慎或另选`);
+        score -= mode.key === "strict" ? Math.max(weights.zodiacPenalty, 30) : weights.zodiacPenalty;
+        warnings.push(`冲本人生肖${userZodiac}，建议谨慎或另选`);
         if (mode.key === "strict") forbidden = true;
       }
     }
@@ -226,6 +311,9 @@
       modeKey: mode.key,
       modeName: mode.name,
       modeDescription: mode.description,
+      sourceKey: source.key,
+      sourceName: source.name,
+      sourceDescription: source.description,
       score,
       grade,
       reasons,
@@ -262,13 +350,14 @@
   function queryAuspiciousDays(options = {}) {
     const eventKey = options.eventKey || "moving";
     const modeKey = options.modeKey || options.scoringMode || "balanced";
+    const sourceKey = options.sourceKey || options.almanacSource || "local_6tail";
     const days = Number(options.days || 90);
     const startDate = options.startDate ? parseDateKey(options.startDate) : new Date();
     const normalizedStart = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 12, 0, 0);
     const userZodiac = normalizeZodiac(options.zodiac || options.birthYear || "");
     const list = [];
     for (let index = 0; index < days; index += 1) {
-      list.push(scoreDay(addDays(normalizedStart, index), eventKey, userZodiac, modeKey));
+      list.push(scoreDay(addDays(normalizedStart, index), eventKey, userZodiac, modeKey, sourceKey));
     }
     return list.sort((a, b) => {
       const gradeWeight = { excellent: 0, good: 1, careful: 2, avoid: 3 };
@@ -288,11 +377,13 @@
   return {
     EVENT_TYPES,
     SCORING_MODES,
+    SOURCE_PROFILES,
     ZODIACS,
     addDays,
     dateKey,
     eventConfig,
     scoringModeConfig,
+    sourceProfileConfig,
     normalizeZodiac,
     queryAuspiciousDays,
     scoreDay,
