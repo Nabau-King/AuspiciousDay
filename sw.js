@@ -1,4 +1,4 @@
-const CACHE_NAME = "auspicious-day-v2";
+const CACHE_NAME = "auspicious-day-v3";
 const ASSETS = [
   "./",
   "./index.html",
