@@ -6,6 +6,16 @@
 
 直接打开 `index.html` 即可使用，不需要构建工具、后端服务或第三方 CDN。
 
+## GitHub Pages 部署
+
+本仓库使用 `.github/workflows/static.yml` 通过 GitHub Actions 发布到 Pages。首次使用前需要在仓库页面完成一次设置：
+
+1. 打开 `Settings` -> `Pages`。
+2. 在 `Build and deployment` 的 `Source` 中选择 `GitHub Actions`。
+3. 保存后重新运行 `Deploy static content to Pages` workflow，或向 `main` 分支推送一次提交。
+
+如果 `Upload artifact` 成功但 `Deploy to GitHub Pages` 失败，通常是 Pages 尚未启用，或发布源还没有切换到 `GitHub Actions`。
+
 ## 文件结构
 
 - `index.html`：应用主页面，包含界面样式与交互逻辑。
