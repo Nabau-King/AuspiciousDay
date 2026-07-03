@@ -14,6 +14,21 @@ function at(key) {
 }
 
 {
+  const balanced = core.scoreDay(at("2026-07-02"), "wedding", "", "balanced");
+  const yiOnly = core.scoreDay(at("2026-07-02"), "wedding", "", "yi_only");
+  assert.strictEqual(yiOnly.modeName, "仅按宜忌");
+  assert(yiOnly.reasons.some((item) => item.includes("不叠加黄道")), "yi-only mode should explain its scope");
+  assert.notStrictEqual(yiOnly.score, balanced.score, "mode should change score for the same date");
+}
+
+{
+  const balanced = core.scoreDay(at("2026-07-05"), "moving", "", "balanced");
+  const strict = core.scoreDay(at("2026-07-05"), "moving", "", "strict");
+  assert.strictEqual(strict.modeName, "严格避忌");
+  assert(strict.score < balanced.score, "strict mode should downgrade black-road days");
+}
+
+{
   const day = core.scoreDay(at("2026-07-01"), "wedding");
   assert(day.jiMatches.includes("嫁娶"), "wedding should detect 忌嫁娶");
   assert.strictEqual(day.forbidden, true);
@@ -37,8 +52,9 @@ function at(key) {
 }
 
 {
-  const list = core.queryAuspiciousDays({ eventKey: "moving", days: 30, startDate: "2026-07-01" });
+  const list = core.queryAuspiciousDays({ eventKey: "moving", days: 30, startDate: "2026-07-01", modeKey: "raw" });
   assert.strictEqual(list.length, 30);
+  assert(list.every((item) => item.modeKey === "raw"), "query should pass scoring mode to every day");
   for (let index = 1; index < list.length; index += 1) {
     const prev = list[index - 1];
     const next = list[index];

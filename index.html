@@ -833,6 +833,15 @@
               </select>
             </div>
             <div class="field">
+              <label for="scoringMode">口径模式</label>
+              <select id="scoringMode">
+                <option value="balanced">通用推荐</option>
+                <option value="yi_only">仅按宜忌</option>
+                <option value="strict">严格避忌</option>
+                <option value="raw">原始黄历</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="zodiac">生肖或出生年（可选）</label>
               <input id="zodiac" type="text" maxlength="4" placeholder="例如：羊 / 1991">
             </div>
@@ -921,8 +930,8 @@
             <p>事项命中每日“宜”会加分；命中每日“忌”会直接降为不宜。</p>
           </div>
           <div class="rule-item">
-            <b>黄道与建除</b>
-            <p>黄道日、吉神、适合事项的建除值星会提高推荐等级。</p>
+            <b>口径可切换</b>
+            <p>支持通用推荐、仅按宜忌、严格避忌、原始黄历四种解释口径。</p>
           </div>
           <div class="rule-item">
             <b>生肖冲煞</b>
@@ -1009,6 +1018,7 @@
       $("startDate").value = inputDateValue(today);
       $("eventType").value = localStorage.getItem("auspiciousEvent") || "moving";
       $("rangeDays").value = localStorage.getItem("auspiciousRange") || "90";
+      $("scoringMode").value = localStorage.getItem("auspiciousScoringMode") || "balanced";
       $("zodiac").value = localStorage.getItem("auspiciousZodiac") || "";
       $("hideAvoid").checked = localStorage.getItem("auspiciousHideAvoid") === "1";
     }
@@ -1022,6 +1032,7 @@
     function currentOptions() {
       return {
         eventKey: $("eventType").value,
+        modeKey: $("scoringMode").value,
         days: Number($("rangeDays").value),
         startDate: $("startDate").value || inputDateValue(new Date()),
         zodiac: $("zodiac").value.trim()
@@ -1032,6 +1043,7 @@
       const options = currentOptions();
       localStorage.setItem("auspiciousEvent", options.eventKey);
       localStorage.setItem("auspiciousRange", String(options.days));
+      localStorage.setItem("auspiciousScoringMode", options.modeKey);
       localStorage.setItem("auspiciousZodiac", options.zodiac);
       localStorage.setItem("auspiciousHideAvoid", $("hideAvoid").checked ? "1" : "0");
       state.sorted = core.queryAuspiciousDays(options);
@@ -1058,6 +1070,7 @@
 
     function render() {
       const event = core.eventConfig($("eventType").value);
+      const mode = core.scoringModeConfig($("scoringMode").value);
       const normalizedZodiac = core.normalizeZodiac($("zodiac").value);
       const top = state.sorted.find((item) => item.grade.key !== "avoid") || state.sorted[0];
       const excellent = state.sorted.filter((item) => item.grade.key === "excellent").length;
@@ -1065,11 +1078,11 @@
       const clash = state.sorted.filter((item) => item.zodiacClash).length;
 
       $("resultTitle").textContent = `${event.name}候选吉日`;
-      $("querySummary").textContent = `${$("startDate").value} 起 · ${$("rangeDays").value} 天${normalizedZodiac ? ` · 生肖${normalizedZodiac}` : ""}`;
+      $("querySummary").textContent = `${$("startDate").value} 起 · ${$("rangeDays").value} 天 · ${mode.name}${normalizedZodiac ? ` · 生肖${normalizedZodiac}` : ""}`;
       $("excellentCount").textContent = `${excellent} 天`;
       $("usableCount").textContent = `${usable} 天`;
       $("clashCount").textContent = normalizedZodiac ? `${clash} 天` : "未填写";
-      $("focusText").textContent = event.shortName;
+      $("focusText").textContent = mode.shortName;
 
       if (top) {
         $("heroGrade").textContent = top.grade.label;
@@ -1138,6 +1151,10 @@
           <span>${escapeHtml(day.solarText)} · ${escapeHtml(day.weekText)}</span>
           <h2>${escapeHtml(day.grade.label)}</h2>
           <p>${escapeHtml(day.grade.tone)}</p>
+        </section>
+        <section class="detail-block">
+          <h3>当前口径</h3>
+          <p>${escapeHtml(day.modeName)}：${escapeHtml(day.modeDescription)}</p>
         </section>
         <section class="detail-block">
           <h3>日期信息</h3>
@@ -1215,6 +1232,7 @@
       const entry = {
         id: new Date().toISOString(),
         eventKey: options.eventKey,
+        modeKey: options.modeKey,
         startDate: options.startDate,
         days: options.days,
         zodiac: options.zodiac,
@@ -1235,11 +1253,12 @@
       }
       $("historyList").innerHTML = history.map((item) => {
         const event = core.eventConfig(item.eventKey);
+        const mode = core.scoringModeConfig(item.modeKey);
         const zodiac = core.normalizeZodiac(item.zodiac);
         return `
           <button class="history-item" type="button" data-history="${escapeHtml(item.id)}">
             <b>${escapeHtml(event.name)} · ${escapeHtml(item.topGrade || "已保存")}</b>
-            <span>${escapeHtml(item.startDate)} 起 ${Number(item.days) || 90} 天${zodiac ? ` · 生肖${escapeHtml(zodiac)}` : ""}${item.topKey ? ` · 首选 ${escapeHtml(item.topKey)}` : ""}</span>
+            <span>${escapeHtml(item.startDate)} 起 ${Number(item.days) || 90} 天 · ${escapeHtml(mode.name)}${zodiac ? ` · 生肖${escapeHtml(zodiac)}` : ""}${item.topKey ? ` · 首选 ${escapeHtml(item.topKey)}` : ""}</span>
           </button>
         `;
       }).join("");
@@ -1249,6 +1268,7 @@
       const entry = loadHistory().find((item) => item.id === id);
       if (!entry) return;
       $("eventType").value = entry.eventKey || "moving";
+      $("scoringMode").value = entry.modeKey || "balanced";
       $("startDate").value = entry.startDate || inputDateValue(new Date());
       $("rangeDays").value = String(entry.days || 90);
       $("zodiac").value = entry.zodiac || "";
@@ -1360,7 +1380,7 @@
     document.querySelectorAll(".tab-btn").forEach((button) => {
       button.addEventListener("click", () => switchView(button.dataset.view));
     });
-    ["eventType", "rangeDays"].forEach((id) => $(id).addEventListener("change", runQuery));
+    ["eventType", "rangeDays", "scoringMode"].forEach((id) => $(id).addEventListener("change", runQuery));
     ["startDate", "zodiac"].forEach((id) => $(id).addEventListener("change", runQuery));
 
     initPreferences();
